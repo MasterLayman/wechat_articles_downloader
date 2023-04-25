@@ -1,3 +1,10 @@
+<<<<<<< HEAD
+=======
+# wechat_articles_downloader
+一个下载微信公众号的小工具
+
+
+>>>>>>> be93984b33ebdb3150f4fc9c058630f4d93f294d
 ###### 关于：打包
 
 使用的是cxfreeze打包
@@ -6,4 +13,8 @@
 
 ```shell
 python setup.py build
+<<<<<<< HEAD
 ```
+=======
+```
+>>>>>>> be93984b33ebdb3150f4fc9c058630f4d93f294d
