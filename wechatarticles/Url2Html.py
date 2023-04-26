@@ -19,7 +19,7 @@ class Url2Html(object):
         ext: str
             预留参数
         """
-        #初始化日志
+        # 初始化日志
         self.logging = LogUtil()
         # self.data_src_re = re.compile(r'data-src="(.*?)"')
         # self.data_croporisrc_re = re.compile(r'data-croporisrc="(.*?)"')
@@ -218,18 +218,18 @@ class Url2Html(object):
             href = tag.get("href")
             type = tag.get("rel")
             if href.startswith("//res.wx.qq.com/mmbizappmsg/zh_CN/htmledition/js/assets/") and type[0]=="stylesheet":
-                #处理css地址
+                # 处理css地址
                 css_url = "http:"+href
-                #获取css
+                # 获取css
                 css_entity = requests.get(css_url, proxies=self.proxies)
-                #获取css名字
+                # 获取css名字
                 index = css_url.find("assets/")
                 save_path = os.path.join(path, os.path.basename(css_url))
-                #下载为文件 存在就不下载了
+                # 下载为文件 存在就不下载了
                 if not os.path.isfile(save_path):
                     with open(save_path, 'wb') as f:
                         f.write(css_entity.content)
-                #替换href为本地文件位置
+                # 替换href为本地文件位置
                 tag['href'] = os.path.join("css", os.path.basename(css_url))
         return str(soup)
 
@@ -251,11 +251,11 @@ class Url2Html(object):
                     raw_json_str = match.group(1).replace(" || ''","").replace(" * 1 || 0","").replace("'", "\"").replace("\\x26amp;","&")
                     # 使用正则表达式将属性名用双引号包裹
                     raw_json_str = re.sub(r"(\w+):", r'"\1":', raw_json_str).replace("\"http\"","http")
-                    #处理多余逗号
+                    # 处理多余逗号
                     raw_json_str = re.sub(r'}\s*,\s*\]', '}]', raw_json_str).replace("],","]")
-                    #转化为python对象
+                    # 转化为python对象
                     video_infos = json.loads(raw_json_str)
-                    #解析video_infos
+                    # 解析video_infos
                     video_list = {}
                     for video in video_infos:
                         video_sources = {}
@@ -266,13 +266,13 @@ class Url2Html(object):
                             url = mp_video["url"]
                             video_sources[format_id] = url+"&vid="+video_id+"&format_id="+format_id+"&support_redirect=0&mmversion=false"
                         video_list[video_id] = video_sources
-                    #匹配到script标签结束后退出循环
+                    # 匹配到script标签结束后退出循环
                     break
-        #遍历下载所有视频
+        # 遍历下载所有视频
         for video_id,video_sources in video_list.items():
-            #遍历该视频所有视频源
+            # 遍历该视频所有视频源
             for format_id,src in video_sources.items():
-                #TODO 目前先写死下载10002的视频
+                # TODO 目前先写死下载10002的视频
                 if "10002" in format_id:
                     # 声明下载地址
                     save_path = os.path.join(path, "videos", video_id+'.mp4')
@@ -284,9 +284,6 @@ class Url2Html(object):
                     # 将视频文件的二进制数据写入本地文件
                     with open(save_path, 'wb') as f:
                         f.write(response.content)
-        #嵌入视频
-        html = html.replace('<span class="weui-primary-loading"><span class="weui-primary-loading__dot"></span></span>',
-                            '<video controls="" width="100%" height="100%"><source src="videos/\'+vid+\'.mp4" type="video/mp4"></video>')
 
         # sounds
         mpvoices = soup.find_all("mpvoice")
@@ -315,7 +312,7 @@ class Url2Html(object):
             span_2.append(span_3)
             span_1.append(span_2)
             mpvoice.replace_with(span_1)
-        #把音频相关的class样式加进classWhiteList
+        # 把音频相关的class样式加进classWhiteList
         scripts = soup.find_all('script')
         for script in scripts:
             # 判断为空
@@ -326,7 +323,13 @@ class Url2Html(object):
                 pattern = r'(classWhiteList:\[")\w+'
                 add_white_list = 'classWhiteList:["db","pages_reset","audio_area","audio_card","audio_card_bd","audio_card_title'
                 script.string = re.sub(pattern, add_white_list, script.string)
-        return str(soup)
+
+        # 转为html
+        html = str(soup)
+        # 嵌入视频
+        html = html.replace('<span class="weui-primary-loading"><span class="weui-primary-loading__dot"></span></span>',
+                            '<video controls="" width="100%" height="100%"><source src="videos/\'+vid+\'.mp4" type="video/mp4"></video>')
+        return html
 
     @staticmethod
     def replace_img(html):
@@ -370,29 +373,29 @@ class Url2Html(object):
                 html = requests.get(url, proxies=proxies).text
                 title = self.rename_title(title, html)
 
-            #文章所有信息会下载到这个文件夹中
+            # 文章所有信息会下载到这个文件夹中
             base_artical_path = title
-            #新建图片路径
+            # 新建图片路径
             if not os.path.isdir(os.path.join(base_artical_path, "imgs")):
                 os.makedirs(os.path.join(base_artical_path, "imgs"))
-            #新建css路径
+            # 新建css路径
             if not os.path.isdir(os.path.join(base_artical_path, "css")):
                 os.makedirs(os.path.join(base_artical_path, "css"))
-            #新建视频路径
+            # 新建视频路径
             if not os.path.isdir(os.path.join(base_artical_path, "videos")):
                 os.makedirs(os.path.join(base_artical_path, "videos"))
-            #新建音频路径
+            # 新建音频路径
             if not os.path.isdir(os.path.join(base_artical_path, "sounds")):
                 os.makedirs(os.path.join(base_artical_path, "sounds"))
-            #替换网页中的静态资源路径为本地路径
+            # 替换网页中的静态资源路径为本地路径
             html = self.load_css(html, os.path.join(base_artical_path, "css"))
             html = self.load_img(html, os.path.join(base_artical_path, "imgs"))
-            #下载音频视频
+            # 下载音频视频
             try:
                 html = self.download_media(html, base_artical_path)
             except Exception as e:
                 self.logging.info('{}---->{}'.format(title, e))
-            #生成html文件
+            # 生成html文件
             save_path = os.path.join(base_artical_path, "文章.html")
             with open(save_path, "w", encoding="utf-8") as f:
                 f.write(html)
