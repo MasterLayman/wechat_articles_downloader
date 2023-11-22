@@ -4,8 +4,8 @@ from cx_Freeze import setup, Executable
 
 # 指定要打包的文件
 build_exe_options = {
-    "packages": ["logging", "os", "datetime", "json", "re", "time", "threading", "requests", "bs4"],
-    "excludes": ["test/", "jsons/", "ttkbootstrap"],
+    "packages": ["logging", "os", "datetime", "json", "re", "time", "threading", "requests", "bs4", "ttkbootstrap"],
+    "excludes": ["test/", "jsons/"],
     "include_files": ["images/"]
 }
 
@@ -16,7 +16,7 @@ if sys.platform == "win32":
 
 executable = [
     Executable(
-        "ArticleDownloader.py",             # 入口文件
+        "ArticleDownloaderUltra.py",        # 入口文件
         base=base,                          # 应用程序类型
         targetName="dowdload.exe",          # 目标程序名称
         icon="images/icon_lg.ico"           # 应用程序图标

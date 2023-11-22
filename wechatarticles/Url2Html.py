@@ -44,40 +44,6 @@ class Url2Html(object):
         return title
 
     @staticmethod
-    def get_title(html):
-        """
-        根据提供的html源码提取文章中的标题
-
-        Parameters
-        ----------
-        html: str
-            文章HTML源码
-
-        Returns
-        ----------
-        str: 根据HTML获取文章标题
-        """
-        try:
-            # title = html.split('activity-name">')[1].split('</h2')[0].strip()
-            title = html.split("<h2")[1].split("</h2")[0].split(">")[1].strip()
-            return title
-        except Exception as e:
-            try:
-                title = html.split("<h1")[1].split("</h1")[0].split(">")[1].strip()
-                return title
-            except Exception as e:
-                return ""
-        # if "var msg_title = " in s.text:
-        #     ct = s.text.split('var ct = "')[1].split('"')[0]
-        #     msg_title = s.text.split("var msg_title = '")[1].split("'")[0]
-        # elif "window.msg_title" in s.text:
-        #     ct = s.text.split("window.ct = '")[1].split("'")[0]
-        #     msg_title = s.text.split("window.msg_title = '")[1].split("'")[0]
-        # else:
-        #     print(url)
-
-
-    @staticmethod
     def article_info(html):
         """
         根据提供的html源码提取文章中的公众号和作者
@@ -89,16 +55,11 @@ class Url2Html(object):
 
         Returns
         ----------
-        (str, str): 公众号名字和作者名字
+        str: 公众号名字
         """
-        # account = (
-        #     html.split('rich_media_meta rich_media_meta_text">')[1]
-        #     .split("</span")[0]
-        #     .strip()
-        # )
-        account = html.split('nickname = "')[1].split('"')[0]
-        author = html.split('id="js_name">')[1].split("</a")[0].strip()
-        return account, author
+        soup = bs(html, "lxml")
+        account = soup.find('a', {'id': 'js_name'}).text.strip()
+        return account
 
     @staticmethod
     def get_timestamp(html):
@@ -114,6 +75,7 @@ class Url2Html(object):
         ----------
         int: 文章发表的时间戳
         """
+        # var ct = "1683775847"
         timestamp = int(html.split('ct = "')[1].split('";')[0].strip())
         return timestamp
 
@@ -136,17 +98,18 @@ class Url2Html(object):
         return date
 
     def rename_title(self, title, html):
+        soup = bs(html, "lxml")
         # 自动获取文章标题
         if title == None:
-            title = self.get_title(html)
+            title = soup.find('h1', {'id': 'activity-name'}).text.strip()
         if title == "":
-            return ""
+            return "无标题"+str(uuid.uuid4()).replace("-","")
         title = self.replace_name(title)
 
         if self.account == None:
             try:
-                account_name = self.article_info(html)[0]
-            except:
+                account_name = self.article_info(html)
+            except Exception as e:
                 account_name = "未分类"
             self.account = account_name
         else:
@@ -163,9 +126,7 @@ class Url2Html(object):
         #     if not os.path.isdir(account_name):
         #         os.mkdir(account_name)
 
-        title = os.path.join(
-            account_name, "[{}]-{}-{}".format(account_name, date, title)
-        )
+        title = os.path.join(account_name, "[{}]-{}-{}".format(account_name, date, title))
         return title
 
     def load_img(self, html, path):
@@ -192,7 +153,7 @@ class Url2Html(object):
                 save_path = os.path.join(path, name)
                 # 如果该图片已被下载，可以无需再下载，直接返回路径即可
                 if not os.path.isfile(save_path):
-                    response = requests.get(img_url, proxies=self.proxies)
+                    response = self.session.get(img_url)
                     img = response.content
                     with open(save_path, "wb") as f:
                         f.write(img)
@@ -221,7 +182,7 @@ class Url2Html(object):
                 # 处理css地址
                 css_url = "http:"+href
                 # 获取css
-                css_entity = requests.get(css_url, proxies=self.proxies)
+                css_entity = self.session.get(css_url)
                 # 获取css名字
                 index = css_url.find("assets/")
                 save_path = os.path.join(path, os.path.basename(css_url))
@@ -233,8 +194,10 @@ class Url2Html(object):
                 tag['href'] = os.path.join("css", os.path.basename(css_url))
         return str(soup)
 
-    def download_media(self, html, path):
+    def download_media(self, html, path, baseUrl):
         soup = bs(html, "lxml")
+        #
+        video_list = {}
         # video
         scripts = soup.find_all('script')
         for script in scripts:
@@ -253,10 +216,11 @@ class Url2Html(object):
                     raw_json_str = re.sub(r"(\w+):", r'"\1":', raw_json_str).replace("\"http\"","http")
                     # 处理多余逗号
                     raw_json_str = re.sub(r'}\s*,\s*\]', '}]', raw_json_str).replace("],","]")
+                    # 处理对象中的视频url
+                    raw_json_str = raw_json_str.replace(".replace(/^http(s?):/, location.protocol)","").replace("(","").replace(")","");
                     # 转化为python对象
                     video_infos = json.loads(raw_json_str)
                     # 解析video_infos
-                    video_list = {}
                     for video in video_infos:
                         video_sources = {}
                         video_id = video["video_id"]
@@ -264,7 +228,7 @@ class Url2Html(object):
                         for mp_video in mp_video_trans_info:
                             format_id = mp_video["format_id"]
                             url = mp_video["url"]
-                            video_sources[format_id] = url+"&vid="+video_id+"&format_id="+format_id+"&support_redirect=0&mmversion=false"
+                            video_sources[format_id] = url # +"&vid="+video_id+"&format_id="+format_id+"&support_redirect=0&mmversion=false"
                         video_list[video_id] = video_sources
                     # 匹配到script标签结束后退出循环
                     break
@@ -279,8 +243,22 @@ class Url2Html(object):
                     # 存在文件则不下载
                     if os.path.isfile(save_path):
                         continue
+                    # 模拟真实用户的请求头
+                    headers = {
+                        "Host": "mpvideo.qpic.cn",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0",
+                        "Accept": "video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5",
+                        "Accept-Language": "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2",
+                        "Referer": "https://mp.weixin.qq.com/",
+                        "Origin": "https://mp.weixin.qq.com",
+                        "Connection": "keep-alive",
+                        "Sec-Fetch-Dest": "video",
+                        "Sec-Fetch-Mode": "cors",
+                        "Sec-Fetch-Site": "cross-site",
+                        "Accept-Encoding": "identity"
+                    }
                     # 视频最多下30分钟
-                    response = requests.get(src, proxies=self.proxies, timeout=(1800, 1800))
+                    response = self.session.get(src, timeout=(10, 1800), headers=headers)
                     # 将视频文件的二进制数据写入本地文件
                     with open(save_path, 'wb') as f:
                         f.write(response.content)
@@ -294,7 +272,7 @@ class Url2Html(object):
             # 存在文件就不下载了
             if os.path.isfile(save_path):
                 continue
-            doc = requests.get(base_url + mpvoice["voice_encode_fileid"])
+            doc = self.session.get(base_url + mpvoice["voice_encode_fileid"])
             # 将视频文件的二进制数据写入本地文件
             with open(save_path, "wb") as f:
                 f.write(doc.content)
@@ -335,7 +313,7 @@ class Url2Html(object):
     def replace_img(html):
         return html.replace("data-src=", "src=").replace("wx_fmt=jpeg", "wx_fmt=web")
 
-    def run(self, url, mode, proxies={"http": None, "https": None}, **kwargs):
+    def run(self, url, mode, **kwargs):
         """
         Parameters
         ----------
@@ -346,33 +324,45 @@ class Url2Html(object):
             1: 保存html源码，下载图片且替换图片路径，并下载视频与音频
             2: 返回html源码，不下载图片，替换src和图片为web
         kwargs:
-            account: 公众号名
-            title: 文章名
-            date: 日期
-            proxies: 代理
+            account:    公众号名
+            title:      文章名
+            date:       日期
+            proxyUrl:   代理网址
+            proxyPort:  代理端口
 
         Returns
         ----------
         str: HTML源码或消息
         """
-        self.proxies = proxies
+        # 创建一个会话对象
+        self.session = requests.Session()
+        # 处理代理
+        if "proxyUrl" in kwargs.keys() and "proxyPort" in kwargs.keys():
+            self.proxyUrl = kwargs["proxyUrl"]
+            self.proxyPort = kwargs["proxyPort"]
+            proxy = {
+                'http': 'http://'+proxyUrl+':'+proxyPort,
+                'https': 'http://'+proxyUrl+':'+proxyPort
+            }
+            self.session.proxies = proxy
+        # 主方法
         if   mode == 2:
-            return self.replace_img(requests.get(url, proxies=proxies).text)
+            return self.replace_img(self.session.get(url).text)
         elif mode == 1:
+            # 先从入口函数的参数中获取公众号名称,文章名称和发布时间
             account = kwargs["account"] if "account" in kwargs.keys() else None
-            self.account = account
             title = kwargs["title"] if "title" in kwargs.keys() else None
             date = kwargs["date"] if "date" in kwargs.keys() else None
-            proxies = kwargs["proxies"] if "proxies" in kwargs.keys() else None
+            # account存为全局变量
+            self.account = account
             if self.account and title and date:
                 title = os.path.join(self.account, "[{}]-{}-{}".format(self.account, date, self.replace_name(title)),)
                 if os.path.isfile("{}.html".format(title)):
                     return 0
-                html = requests.get(url, proxies=proxies).text
+                html = self.session.get(url).text
             else:
-                html = requests.get(url, proxies=proxies).text
+                html = self.session.get(url).text
                 title = self.rename_title(title, html)
-
             # 文章所有信息会下载到这个文件夹中
             base_artical_path = title
             # 新建图片路径
@@ -391,15 +381,23 @@ class Url2Html(object):
             html = self.load_css(html, os.path.join(base_artical_path, "css"))
             html = self.load_img(html, os.path.join(base_artical_path, "imgs"))
             # 下载音频视频
+            media_download_flag = True
             try:
-                html = self.download_media(html, base_artical_path)
+                html = self.download_media(html, base_artical_path, url)
             except Exception as e:
+                media_download_flag = False
                 self.logging.info('{}---->{}'.format(title, e))
             # 生成html文件
             save_path = os.path.join(base_artical_path, "文章.html")
             with open(save_path, "w", encoding="utf-8") as f:
                 f.write(html)
-            return "地址为：{} 的文章下载完成!".format(url)
+            if(media_download_flag):
+                return 1
+                # return "地址为：{} 的文章下载完成!".format(url)
+            else:
+                return 0
+                # return "地址为：{} 的文章下载失败!".format(url)
         else:
             print("please input correct mode num")
-            return "地址为：{} 的文章下载失败!".format(url)
+            return 0
+            # return "地址为：{} 的文章下载失败!".format(url)
